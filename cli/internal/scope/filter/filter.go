@@ -25,6 +25,8 @@ type Resolver struct {
 	Cwd          string
 }
 
+// GetPackagesFromPatterns compiles filter patterns and applies them, returning
+// the selected packages
 func (r *Resolver) GetPackagesFromPatterns(patterns []string) (util.Set, error) {
 	selectors := []*TargetSelector{}
 	for _, pattern := range patterns {

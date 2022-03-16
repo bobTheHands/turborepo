@@ -229,6 +229,19 @@ func Test_filter(t *testing.T) {
 			},
 			[]string{"project-0", "project-2", "project-3", "project-4", "project-5", "project-6"},
 		},
+		{
+			"select by parentDir and exclude one package by pattern",
+			[]*TargetSelector{
+				{
+					parentDir: "/packages/*",
+				},
+				{
+					exclude:     true,
+					namePattern: "*-1",
+				},
+			},
+			[]string{"project-0"},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -355,4 +368,72 @@ func Test_matchMultipleScopedPackages(t *testing.T) {
 		t.Fatalf("failed to filter packages: %v", err)
 	}
 	setMatches(t, "match nothing with multiple scoped packages", pkgs.pkgs, []string{})
+}
+
+func Test_SCM(t *testing.T) {
+	root, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	scm := &mockSCM{
+		changed: []string{
+			filepath.Join("package-1", "file1.js"),
+			filepath.Join("package-2", "file2.js"),
+		},
+	}
+	packageJSONs := make(map[interface{}]*fs.PackageJSON)
+	graph := &dag.AcyclicGraph{}
+	graph.Add("package-1")
+	packageJSONs["package-1"] = &fs.PackageJSON{
+		Name: "package-1",
+		Dir:  filepath.Join(root, "package-1"),
+	}
+	graph.Add("package-2")
+	packageJSONs["package-2"] = &fs.PackageJSON{
+		Name: "package-2",
+		Dir:  filepath.Join(root, "package-2"),
+	}
+	graph.Add("package-3")
+	packageJSONs["package-3"] = &fs.PackageJSON{
+		Name: "package-3",
+		Dir:  filepath.Join(root, "package-3"),
+	}
+	graph.Add("package-20")
+	packageJSONs["package-20"] = &fs.PackageJSON{
+		Name: "package-20",
+		Dir:  filepath.Join(root, "package-20"),
+	}
+
+	graph.Connect(dag.BasicEdge("package-3", "package-20"))
+
+	r := &Resolver{
+		Graph:        graph,
+		PackageInfos: packageJSONs,
+		Cwd:          root,
+		SCM:          scm,
+	}
+
+	testCases := []struct {
+		Name      string
+		Selectors []*TargetSelector
+		Expected  []string
+	}{
+		{
+			"all changed packages",
+			[]*TargetSelector{
+				{
+					diff: "HEAD~1",
+				},
+			},
+			[]string{"package-1", "package-2"},
+		},
+	}
+
+	for _, tc := range testCases {
+		pkgs, err := r.GetFilteredPackages(tc.Selectors)
+		if err != nil {
+			t.Fatalf("%v failed to filter packages: %v", tc.Name, err)
+		}
+		setMatches(t, tc.Name, pkgs.pkgs, tc.Expected)
+	}
 }
