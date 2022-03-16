@@ -377,8 +377,8 @@ func Test_SCM(t *testing.T) {
 	}
 	scm := &mockSCM{
 		changed: []string{
-			filepath.Join("package-1", "file1.js"),
-			filepath.Join("package-2", "file2.js"),
+			filepath.Join(root, "package-1", "file1.js"),
+			filepath.Join(root, "package-2", "file2.js"),
 		},
 	}
 	packageJSONs := make(map[interface{}]*fs.PackageJSON)
@@ -427,6 +427,38 @@ func Test_SCM(t *testing.T) {
 			},
 			[]string{"package-1", "package-2"},
 		},
+		{
+			"changed packages in directory",
+			[]*TargetSelector{
+				{
+					diff:      "HEAD~1",
+					parentDir: "package-2",
+				},
+			},
+			[]string{"package-2"},
+		},
+		{
+			"changed packages matching pattern",
+			[]*TargetSelector{
+				{
+					diff:        "HEAD~1",
+					namePattern: "package-2*",
+				},
+			},
+			[]string{"package-2"},
+		},
+		{
+			"changed packages matching pattern",
+			[]*TargetSelector{
+				{
+					diff:        "HEAD~1",
+					namePattern: "package-2*",
+				},
+			},
+			[]string{"package-2"},
+		},
+		// Note: missing test here that takes advantage of automatically exempting
+		// test-only changes from pulling in dependents
 	}
 
 	for _, tc := range testCases {

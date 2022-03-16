@@ -116,7 +116,7 @@ func (r *Resolver) filterGraphWithSelectors(selectors []*TargetSelector) (*Selec
 		if selector.diff != "" {
 			// get changed packaged
 			selectorWasUsed = true
-			changedFiles := r.SCM.ChangedFiles(selector.diff, true, r.Cwd)
+			changedFiles := r.SCM.ChangedFiles(selector.diff, true, filepath.Join(r.Cwd, selector.parentDir))
 			entryPackages = GetChangedPackages(changedFiles, r.PackageInfos)
 		} else if selector.parentDir != "" {
 			// get packages by path
