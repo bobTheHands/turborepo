@@ -11,20 +11,6 @@ import (
 	"github.com/vercel/turborepo/cli/internal/util"
 )
 
-type mockSCM struct {
-	changed []string
-}
-
-func (m *mockSCM) ChangedFiles(fromCommit string, includeUntracked bool, relativeTo string) []string {
-	changed := []string{}
-	for _, change := range m.changed {
-		if strings.HasPrefix(change, relativeTo) {
-			changed = append(changed, change)
-		}
-	}
-	return changed
-}
-
 func setMatches(t *testing.T, name string, s util.Set, expected []string) {
 	expectedSet := make(util.Set)
 	for _, item := range expected {
@@ -45,7 +31,6 @@ func Test_filter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get working directory: %v", err)
 	}
-	scm := &mockSCM{}
 	packageJSONs := make(map[interface{}]*fs.PackageJSON)
 	graph := &dag.AcyclicGraph{}
 	graph.Add("project-0")
@@ -94,7 +79,6 @@ func Test_filter(t *testing.T) {
 		Graph:        graph,
 		PackageInfos: packageJSONs,
 		Cwd:          root,
-		SCM:          scm,
 	}
 
 	testCases := []struct {
@@ -245,29 +229,33 @@ func Test_filter(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		pkgs, err := r.GetFilteredPackages(tc.Selectors)
-		if err != nil {
-			t.Fatalf("%v failed to filter packages: %v", tc.Name, err)
-		}
-		setMatches(t, tc.Name, pkgs.pkgs, tc.Expected)
+		t.Run(tc.Name, func(t *testing.T) {
+			pkgs, err := r.GetFilteredPackages(tc.Selectors)
+			if err != nil {
+				t.Fatalf("%v failed to filter packages: %v", tc.Name, err)
+			}
+			setMatches(t, tc.Name, pkgs.pkgs, tc.Expected)
+		})
 	}
 
-	pkgs, err := r.GetFilteredPackages([]*TargetSelector{
-		{
-			excludeSelf:         true,
-			includeDependencies: true,
-			namePattern:         "project-7",
-		},
+	t.Run("report unmatched filters", func(t *testing.T) {
+		pkgs, err := r.GetFilteredPackages([]*TargetSelector{
+			{
+				excludeSelf:         true,
+				includeDependencies: true,
+				namePattern:         "project-7",
+			},
+		})
+		if err != nil {
+			t.Fatalf("unmatched filter failed to filter packages: %v", err)
+		}
+		if pkgs.pkgs.Len() != 0 {
+			t.Errorf("unmatched filter expected no packages, got %v", strings.Join(pkgs.pkgs.UnsafeListOfStrings(), ", "))
+		}
+		if len(pkgs.unusedFilters) != 1 {
+			t.Errorf("unmatched filter expected to report one unused filter, got %v", len(pkgs.unusedFilters))
+		}
 	})
-	if err != nil {
-		t.Fatalf("unmatched filter failed to filter packages: %v", err)
-	}
-	if pkgs.pkgs.Len() != 0 {
-		t.Errorf("unmatched filter expected no packages, got %v", strings.Join(pkgs.pkgs.UnsafeListOfStrings(), ", "))
-	}
-	if len(pkgs.unusedFilters) != 1 {
-		t.Errorf("unmatched filter expected to report one unused filter, got %v", len(pkgs.unusedFilters))
-	}
 }
 
 func Test_matchScopedPackage(t *testing.T) {
@@ -275,7 +263,6 @@ func Test_matchScopedPackage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get working directory: %v", err)
 	}
-	scm := &mockSCM{}
 	packageJSONs := make(map[interface{}]*fs.PackageJSON)
 	graph := &dag.AcyclicGraph{}
 	graph.Add("@foo/bar")
@@ -287,7 +274,6 @@ func Test_matchScopedPackage(t *testing.T) {
 		Graph:        graph,
 		PackageInfos: packageJSONs,
 		Cwd:          root,
-		SCM:          scm,
 	}
 	pkgs, err := r.GetFilteredPackages([]*TargetSelector{
 		{
@@ -305,7 +291,6 @@ func Test_matchExactPackages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get working directory: %v", err)
 	}
-	scm := &mockSCM{}
 	packageJSONs := make(map[interface{}]*fs.PackageJSON)
 	graph := &dag.AcyclicGraph{}
 	graph.Add("@foo/bar")
@@ -322,7 +307,6 @@ func Test_matchExactPackages(t *testing.T) {
 		Graph:        graph,
 		PackageInfos: packageJSONs,
 		Cwd:          root,
-		SCM:          scm,
 	}
 	pkgs, err := r.GetFilteredPackages([]*TargetSelector{
 		{
@@ -340,7 +324,6 @@ func Test_matchMultipleScopedPackages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get working directory: %v", err)
 	}
-	scm := &mockSCM{}
 	packageJSONs := make(map[interface{}]*fs.PackageJSON)
 	graph := &dag.AcyclicGraph{}
 	graph.Add("@foo/bar")
@@ -357,7 +340,6 @@ func Test_matchMultipleScopedPackages(t *testing.T) {
 		Graph:        graph,
 		PackageInfos: packageJSONs,
 		Cwd:          root,
-		SCM:          scm,
 	}
 	pkgs, err := r.GetFilteredPackages([]*TargetSelector{
 		{
@@ -375,12 +357,9 @@ func Test_SCM(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get working directory: %v", err)
 	}
-	scm := &mockSCM{
-		changed: []string{
-			filepath.Join(root, "package-1", "file1.js"),
-			filepath.Join(root, "package-2", "file2.js"),
-		},
-	}
+	changedPackages := make(util.Set)
+	changedPackages.Add("package-1")
+	changedPackages.Add("package-2")
 	packageJSONs := make(map[interface{}]*fs.PackageJSON)
 	graph := &dag.AcyclicGraph{}
 	graph.Add("package-1")
@@ -410,7 +389,9 @@ func Test_SCM(t *testing.T) {
 		Graph:        graph,
 		PackageInfos: packageJSONs,
 		Cwd:          root,
-		SCM:          scm,
+		PackagesChangedSince: func(since string) (util.Set, error) {
+			return changedPackages, nil
+		},
 	}
 
 	testCases := []struct {
@@ -462,10 +443,12 @@ func Test_SCM(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		pkgs, err := r.GetFilteredPackages(tc.Selectors)
-		if err != nil {
-			t.Fatalf("%v failed to filter packages: %v", tc.Name, err)
-		}
-		setMatches(t, tc.Name, pkgs.pkgs, tc.Expected)
+		t.Run(tc.Name, func(t *testing.T) {
+			pkgs, err := r.GetFilteredPackages(tc.Selectors)
+			if err != nil {
+				t.Fatalf("%v failed to filter packages: %v", tc.Name, err)
+			}
+			setMatches(t, tc.Name, pkgs.pkgs, tc.Expected)
+		})
 	}
 }

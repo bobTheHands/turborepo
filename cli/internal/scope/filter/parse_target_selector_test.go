@@ -262,6 +262,9 @@ func TestParseTargetSelector(t *testing.T) {
 				t.Errorf("ParseTargetSelector() error = %#v, wantErr %#v", err, tt.wantErr)
 				return
 			}
+			// copy the raw selector from the args into what we want. This value is used
+			// for reporting errors in the case of a malformed selector
+			tt.want.raw = tt.args.rawSelector
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ParseTargetSelector() = %#v, want %#v", got, tt.want)
 			}

@@ -9,7 +9,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/pyr-sh/dag"
 	"github.com/vercel/turborepo/cli/internal/fs"
-	"github.com/vercel/turborepo/cli/internal/scm"
 	"github.com/vercel/turborepo/cli/internal/util"
 )
 
@@ -18,11 +17,15 @@ type SelectedPackages struct {
 	unusedFilters []*TargetSelector
 }
 
+type PackagesChangedSince = func(since string) (util.Set, error)
+
 type Resolver struct {
 	Graph        *dag.AcyclicGraph
 	PackageInfos map[interface{}]*fs.PackageJSON
-	SCM          scm.SCM
-	Cwd          string
+	// SCM                  scm.SCM
+	Cwd string
+	// HasGlobalChange      bool
+	PackagesChangedSince PackagesChangedSince
 }
 
 // GetPackagesFromPatterns compiles filter patterns and applies them, returning
@@ -62,7 +65,9 @@ func (r *Resolver) GetFilteredPackages(selectors []*TargetSelector) (*SelectedPa
 			return selected, nil
 		}
 	}
-	return nil, errors.New("not yet implemented")
+	return &SelectedPackages{
+		pkgs: make(util.Set),
+	}, nil
 }
 
 func (r *Resolver) filterGraph(selectors []*TargetSelector) (*SelectedPackages, error) {
@@ -116,8 +121,27 @@ func (r *Resolver) filterGraphWithSelectors(selectors []*TargetSelector) (*Selec
 		if selector.diff != "" {
 			// get changed packaged
 			selectorWasUsed = true
-			changedFiles := r.SCM.ChangedFiles(selector.diff, true, filepath.Join(r.Cwd, selector.parentDir))
-			entryPackages = GetChangedPackages(changedFiles, r.PackageInfos)
+			changedPkgs, err := r.PackagesChangedSince(selector.diff)
+			if err != nil {
+				return nil, err
+			}
+			parentDir := ""
+			if selector.parentDir != "" {
+				parentDir = filepath.Join(r.Cwd, selector.parentDir)
+			}
+			for pkgName := range changedPkgs {
+				if parentDir != "" {
+					if pkg, ok := r.PackageInfos[pkgName]; !ok {
+						return nil, fmt.Errorf("missing info for package %v", pkgName)
+					} else if matches, err := doublestar.PathMatch(parentDir, pkg.Dir); err != nil {
+						return nil, fmt.Errorf("failed to resolve directory relationship %v contains %v: %v", selector.parentDir, pkg.Dir, err)
+					} else if matches {
+						entryPackages.Add(pkgName)
+					}
+				} else {
+					entryPackages.Add(pkgName)
+				}
+			}
 		} else if selector.parentDir != "" {
 			// get packages by path
 			selectorWasUsed = true
@@ -256,24 +280,4 @@ func matchPackageNames(pattern string, packages util.Set) (util.Set, error) {
 		}
 	}
 	return matched, nil
-}
-
-func GetChangedPackages(changedFiles []string, packageInfos map[interface{}]*fs.PackageJSON) util.Set {
-	changedPackages := make(util.Set)
-	for k, pkgInfo := range packageInfos {
-		partialPath := pkgInfo.Dir
-		if someFileHasPrefix(partialPath, changedFiles) {
-			changedPackages.Add(k)
-		}
-	}
-	return changedPackages
-}
-
-func someFileHasPrefix(prefix string, files []string) bool {
-	for _, f := range files {
-		if strings.HasPrefix(f, prefix) {
-			return true
-		}
-	}
-	return false
 }
