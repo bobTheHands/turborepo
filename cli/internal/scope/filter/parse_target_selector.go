@@ -8,6 +8,7 @@ import (
 
 type TargetSelector struct {
 	includeDependencies bool
+	preAddDepdencies    bool
 	includeDependents   bool
 	exclude             bool
 	excludeSelf         bool
@@ -19,7 +20,7 @@ type TargetSelector struct {
 }
 
 func (ts *TargetSelector) IsValid() bool {
-  return ts.diff != "" || ts.parentDir != "" || ts.namePattern != ""
+	return ts.diff != "" || ts.parentDir != "" || ts.namePattern != ""
 }
 
 // ParseTargetSelector is a function that returns PNPM compatible --filter command line flags
@@ -80,9 +81,14 @@ func ParseTargetSelector(rawSelector string, prefix string) (TargetSelector, err
 		}, nil
 	}
 
+	preAddDepdencies := false
 	if len(matches) > 0 && len(matches[0]) > 0 {
 		if len(matches[0][1]) > 0 {
 			namePattern = matches[0][1]
+			if strings.HasSuffix(namePattern, "...") {
+				namePattern = namePattern[:len(namePattern)-3]
+				preAddDepdencies = true
+			}
 		}
 		if len(matches[0][2]) > 0 {
 			parentDir = filepath.Join(prefix, matches[0][2][1:len(matches[0][2])-1])
@@ -97,6 +103,7 @@ func ParseTargetSelector(rawSelector string, prefix string) (TargetSelector, err
 		exclude:             exclude,
 		excludeSelf:         excludeSelf,
 		includeDependencies: includeDependencies,
+		preAddDepdencies:    preAddDepdencies,
 		includeDependents:   includeDependents,
 		namePattern:         namePattern,
 		parentDir:           parentDir,
