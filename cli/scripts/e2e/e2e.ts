@@ -102,12 +102,6 @@ function runSmokeTests<T>(
           options
         )
       );
-      // TODO(gsoltis): should we print an english description of the filters used?
-      // assert.fixture(
-      //   `• Packages changed since main: a`,
-      //   sinceCommandOutputNoCache[0],
-      //   "Calculates changed packages (--since)"
-      // );
       assert.fixture(
         sinceCommandOutputNoCache[0],
         `• Packages in scope: a`,
@@ -218,13 +212,13 @@ function runSmokeTests<T>(
       );
 
       assert.fixture(
-        scopeCommandOutput[0],
         `• Packages in scope: a, c`,
+        scopeCommandOutput[0],
         "Packages in scope"
       );
       assert.fixture(
-        scopeCommandOutput[1],
         `• Running test in 2 packages`,
+        scopeCommandOutput[1],
         "Runs only in changed packages"
       );
     }
