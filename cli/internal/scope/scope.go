@@ -43,19 +43,15 @@ func (o *Opts) asFilterPatterns() []string {
 		since = fmt.Sprintf("[%v]", o.Since)
 	}
 	if len(o.Patterns) > 0 {
-		// --scope implies include dependencies
+		// --scope implies our tweaked syntax to see if any dependency matches
+		since = "..." + since
 		for _, pattern := range o.Patterns {
-			negate := ""
-      patternPrefix := prefix
-      patternSuffix := suffix
 			if strings.HasPrefix(pattern, "!") {
-				negate = "!"
-				pattern = pattern[1:]
-        patternPrefix = ""
-        patternSuffix = ""
+				patterns = append(patterns, pattern)
+			} else {
+				filterPattern := fmt.Sprintf("%v%v%v%v", prefix, pattern, since, suffix)
+				patterns = append(patterns, filterPattern)
 			}
-			filterPattern := fmt.Sprintf("%v%v%v%v%v", negate, patternPrefix, pattern, since, patternSuffix)
-			patterns = append(patterns, filterPattern)
 		}
 	} else if since != "" {
 		// no scopes specified, but --since was provided

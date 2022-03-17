@@ -8,7 +8,7 @@ import (
 
 type TargetSelector struct {
 	includeDependencies bool
-	preAddDepdencies    bool
+	matchDependencies   bool
 	includeDependents   bool
 	exclude             bool
 	excludeSelf         bool
@@ -49,7 +49,7 @@ func ParseTargetSelector(rawSelector string, prefix string) (TargetSelector, err
 			selector = selector[1:]
 		}
 	}
-	regex := regexp.MustCompile(`^([^.][^{}[\]]*)?(\{[^}]+\})?(\[[^\]]+\])?$`)
+	regex := regexp.MustCompile(`^([^.](?:[^{}[\]]*[^{}[\].])?)?(\{[^}]+\})?((?:\.{3})?\[[^\]]+\])?$`)
 	matches := regex.FindAllStringSubmatch(selector, -1)
 
 	diff := ""
@@ -85,16 +85,27 @@ func ParseTargetSelector(rawSelector string, prefix string) (TargetSelector, err
 	if len(matches) > 0 && len(matches[0]) > 0 {
 		if len(matches[0][1]) > 0 {
 			namePattern = matches[0][1]
-			if strings.HasSuffix(namePattern, "...") {
+			/*if strings.HasSuffix(namePattern, "...") {
 				namePattern = namePattern[:len(namePattern)-3]
 				preAddDepdencies = true
-			}
+			}*/
 		}
 		if len(matches[0][2]) > 0 {
-			parentDir = filepath.Join(prefix, matches[0][2][1:len(matches[0][2])-1])
+			parentDir = matches[0][2]
+			/*if strings.HasSuffix(parentDir, "...") {
+				parentDir = parentDir[:len(parentDir)-3]
+				preAddDepdencies = true
+			}*/
+			parentDir = filepath.Join(prefix, parentDir[1:len(parentDir)-1])
 		}
 		if len(matches[0][3]) > 0 {
-			diff = matches[0][3][1 : len(matches[0][3])-1]
+			diff = matches[0][3]
+			if strings.HasPrefix(diff, "...") {
+				preAddDepdencies = true
+				diff = diff[3:]
+			}
+			// strip []
+			diff = diff[1 : len(diff)-1]
 		}
 	}
 
@@ -103,7 +114,7 @@ func ParseTargetSelector(rawSelector string, prefix string) (TargetSelector, err
 		exclude:             exclude,
 		excludeSelf:         excludeSelf,
 		includeDependencies: includeDependencies,
-		preAddDepdencies:    preAddDepdencies,
+		matchDependencies:   preAddDepdencies,
 		includeDependents:   includeDependents,
 		namePattern:         namePattern,
 		parentDir:           parentDir,

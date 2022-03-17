@@ -168,36 +168,38 @@ func TestResolvePackages(t *testing.T) {
 			includeDependencies: true, // scope implies include-dependencies
 		},
 		// TODO(gsoltis): filter syntax doesn't support these cases
-		// {
-		// 	// a dependent lib changed, scope implies include-dependencies,
-		// 	// so all deps of app1 get built
-		// 	name:                "dependency of scope changed",
-		// 	changed:             []string{"libs/libA/src/index.ts"},
-		// 	expected:            []string{"libA", "libB", "libD", "app1"},
-		// 	since:               "dummy",
-		// 	scope:               []string{"app1"},
-		// 	includeDependencies: true, // scope implies include-dependencies
-		// },
-		// {
-		// 	// a dependent lib changed, user explicitly asked to not build dependencies
-		// 	// note: this is not yet supported by the CLI, as you cannot specify --include-dependencies=false
-		// 	name:                "dependency of scope changed, user asked to not include depedencies",
-		// 	changed:             []string{"libs/libA/src/index.ts"},
-		// 	expected:            []string{"libA", "app1"},
-		// 	since:               "dummy",
-		// 	scope:               []string{"app1"},
-		// 	includeDependencies: false,
-		// },
-		// {
-		// 	// a nested dependent lib changed, user explicitly asked to not build dependencies
-		// 	// note: this is not yet supported by the CLI, as you cannot specify --include-dependencies=false
-		// 	name:                "nested dependency of scope changed, user asked to not include dependencies",
-		// 	changed:             []string{"libs/libB/src/index.ts"},
-		// 	expected:            []string{"libA", "libB", "app1"},
-		// 	since:               "dummy",
-		// 	scope:               []string{"app1"},
-		// 	includeDependencies: false,
-		// },
+		{
+			// a dependent lib changed, scope implies include-dependencies,
+			// so all deps of app1 get built
+			name:                "dependency of scope changed",
+			changed:             []string{"libs/libA/src/index.ts"},
+			expected:            []string{"libA", "libB", "libD", "app1"},
+			since:               "dummy",
+			scope:               []string{"app1"},
+			includeDependencies: true, // scope implies include-dependencies
+		},
+		{
+			// a dependent lib changed, user explicitly asked to not build dependencies.
+			// Since the package matching the scope had a changed dependency, we run it.
+			// We don't include its dependencies because the user asked for no dependencies.
+			// note: this is not yet supported by the CLI, as you cannot specify --include-dependencies=false
+			name:                "dependency of scope changed, user asked to not include depedencies",
+			changed:             []string{"libs/libA/src/index.ts"},
+			expected:            []string{"app1"},
+			since:               "dummy",
+			scope:               []string{"app1"},
+			includeDependencies: false,
+		},
+		{
+			// a nested dependent lib changed, user explicitly asked to not build dependencies
+			// note: this is not yet supported by the CLI, as you cannot specify --include-dependencies=false
+			name:                "nested dependency of scope changed, user asked to not include dependencies",
+			changed:             []string{"libs/libB/src/index.ts"},
+			expected:            []string{"app1"},
+			since:               "dummy",
+			scope:               []string{"app1"},
+			includeDependencies: false,
+		},
 		{
 			name:       "global dependency changed, even though it was ignored, forcing a build of everything",
 			changed:    []string{"libs/libB/src/index.ts"},
@@ -227,17 +229,17 @@ func TestResolvePackages(t *testing.T) {
 			expected: []string{"app0", "app1", "app2", "libA", "libB", "libC", "libD"},
 		},
 		// As above, not supported by filter syntax
-		// {
-		// 	// a dependent library changed, no deps beyond the scope are build
-		// 	// "libB" is still built because it is a dependent within the scope, but libB's dependents
-		// 	// are skipped
-		// 	name:                "a dependent library changed, build up to scope",
-		// 	changed:             []string{"libs/libD/src/index.ts"},
-		// 	since:               "dummy",
-		// 	scope:               []string{"libB"},
-		// 	expected:            []string{"libB", "libD"},
-		// 	includeDependencies: true, // scope implies include-dependencies
-		// },
+		{
+			// a dependent library changed, no deps beyond the scope are build
+			// "libB" is still built because it is a dependent within the scope, but libB's dependents
+			// are skipped
+			name:                "a dependent library changed, build up to scope",
+			changed:             []string{"libs/libD/src/index.ts"},
+			since:               "dummy",
+			scope:               []string{"libB"},
+			expected:            []string{"libB", "libD"},
+			includeDependencies: true, // scope implies include-dependencies
+		},
 		{
 			name:              "library change, no scope",
 			changed:           []string{"libs/libA/src/index.ts"},

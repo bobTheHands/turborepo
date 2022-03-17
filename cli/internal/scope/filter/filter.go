@@ -116,65 +116,9 @@ func (r *Resolver) filterGraphWithSelectors(selectors []*TargetSelector) (*Selec
 
 	for _, selector := range selectors {
 		// TODO(gsoltis): this should be a list?
-		entryPackages := make(util.Set)
-		selectorWasUsed := false
-		if selector.diff != "" {
-			// get changed packaged
-			selectorWasUsed = true
-			changedPkgs, err := r.PackagesChangedSince(selector.diff)
-			if err != nil {
-				return nil, err
-			}
-			parentDir := ""
-			if selector.parentDir != "" {
-				parentDir = filepath.Join(r.Cwd, selector.parentDir)
-			}
-			for pkgName := range changedPkgs {
-				if parentDir != "" {
-					if pkg, ok := r.PackageInfos[pkgName]; !ok {
-						return nil, fmt.Errorf("missing info for package %v", pkgName)
-					} else if matches, err := doublestar.PathMatch(parentDir, pkg.Dir); err != nil {
-						return nil, fmt.Errorf("failed to resolve directory relationship %v contains %v: %v", selector.parentDir, pkg.Dir, err)
-					} else if matches {
-						entryPackages.Add(pkgName)
-					}
-				} else {
-					entryPackages.Add(pkgName)
-				}
-			}
-		} else if selector.parentDir != "" {
-			// get packages by path
-			selectorWasUsed = true
-			parentDir := filepath.Join(r.Cwd, selector.parentDir)
-			for name, pkg := range r.PackageInfos {
-				if matches, err := doublestar.PathMatch(parentDir, pkg.Dir); err != nil {
-					return nil, fmt.Errorf("failed to resolve directory relationship %v contains %v: %v", selector.parentDir, pkg.Dir, err)
-				} else if matches {
-					entryPackages.Add(name.(string))
-				}
-			}
-		}
-		if selector.namePattern != "" {
-			selectorWasUsed = true
-			// find packages that match name
-			if entryPackages.Len() == 0 {
-				matched, err := matchPackageNamesToVertices(selector.namePattern, r.Graph.Vertices())
-				if err != nil {
-					return nil, err
-				}
-				entryPackages = matched
-			} else {
-				matched, err := matchPackageNames(selector.namePattern, entryPackages)
-				if err != nil {
-					return nil, err
-				}
-				entryPackages = matched
-			}
-		}
-		// TODO(gsoltis): we can do this earlier
-		// Check if the selector specified anything
-		if !selectorWasUsed {
-			return nil, fmt.Errorf("invalid selector: %v", selector.raw)
+		entryPackages, err := r.filterGraphWithSelector(selector)
+		if err != nil {
+			return nil, err
 		}
 		if entryPackages.Len() == 0 {
 			unmatchedSelectors = append(unmatchedSelectors, selector)
@@ -235,6 +179,131 @@ func (r *Resolver) filterGraphWithSelectors(selectors []*TargetSelector) (*Selec
 		pkgs:          allPkgs,
 		unusedFilters: unmatchedSelectors,
 	}, nil
+}
+
+func (r *Resolver) filterGraphWithSelector(selector *TargetSelector) (util.Set, error) {
+	if selector.matchDependencies {
+		return r.filterSubtreesWithSelector(selector)
+	}
+	return r.filterNodesWithSelector(selector)
+}
+
+// filterNodesWithSelector returns the set of nodes that match a given selector
+func (r *Resolver) filterNodesWithSelector(selector *TargetSelector) (util.Set, error) {
+	entryPackages := make(util.Set)
+	selectorWasUsed := false
+	if selector.diff != "" {
+		// get changed packaged
+		selectorWasUsed = true
+		changedPkgs, err := r.PackagesChangedSince(selector.diff)
+		if err != nil {
+			return nil, err
+		}
+		parentDir := ""
+		if selector.parentDir != "" {
+			parentDir = filepath.Join(r.Cwd, selector.parentDir)
+		}
+
+		for pkgName := range changedPkgs {
+			if parentDir != "" {
+				if pkg, ok := r.PackageInfos[pkgName]; !ok {
+					return nil, fmt.Errorf("missing info for package %v", pkgName)
+				} else if matches, err := doublestar.PathMatch(parentDir, pkg.Dir); err != nil {
+					return nil, fmt.Errorf("failed to resolve directory relationship %v contains %v: %v", selector.parentDir, pkg.Dir, err)
+				} else if matches {
+					entryPackages.Add(pkgName)
+				}
+			} else {
+				entryPackages.Add(pkgName)
+			}
+		}
+	} else if selector.parentDir != "" {
+		// get packages by path
+		selectorWasUsed = true
+		parentDir := filepath.Join(r.Cwd, selector.parentDir)
+		for name, pkg := range r.PackageInfos {
+			if matches, err := doublestar.PathMatch(parentDir, pkg.Dir); err != nil {
+				return nil, fmt.Errorf("failed to resolve directory relationship %v contains %v: %v", selector.parentDir, pkg.Dir, err)
+			} else if matches {
+				entryPackages.Add(name)
+			}
+		}
+	}
+	if selector.namePattern != "" {
+		selectorWasUsed = true
+		// find packages that match name
+		if entryPackages.Len() == 0 {
+			matched, err := matchPackageNamesToVertices(selector.namePattern, r.Graph.Vertices())
+			if err != nil {
+				return nil, err
+			}
+			entryPackages = matched
+		} else {
+			matched, err := matchPackageNames(selector.namePattern, entryPackages)
+			if err != nil {
+				return nil, err
+			}
+			entryPackages = matched
+		}
+	}
+	// TODO(gsoltis): we can do this earlier
+	// Check if the selector specified anything
+	if !selectorWasUsed {
+		return nil, fmt.Errorf("invalid selector: %v", selector.raw)
+	}
+	return entryPackages, nil
+}
+
+// filterSubtreesWithSelector returns the set of nodes where the node or any of its dependencies
+// match a selector
+func (r *Resolver) filterSubtreesWithSelector(selector *TargetSelector) (util.Set, error) {
+	// foreach package that matches parentDir && namePattern, check if any dependency is in changed packages
+	changedPkgs, err := r.PackagesChangedSince(selector.diff)
+	if err != nil {
+		return nil, err
+	}
+
+	parentDir := ""
+	if selector.parentDir != "" {
+		parentDir = filepath.Join(r.Cwd, selector.parentDir)
+	}
+	entryPackages := make(util.Set)
+	for name, pkg := range r.PackageInfos {
+		if parentDir == "" {
+			entryPackages.Add(name)
+		} else if matches, err := doublestar.PathMatch(parentDir, pkg.Dir); err != nil {
+			return nil, fmt.Errorf("failed to resolve directory relationship %v contains %v: %v", selector.parentDir, pkg.Dir, err)
+		} else if matches {
+			entryPackages.Add(name)
+		}
+	}
+	if selector.namePattern != "" {
+		matched, err := matchPackageNames(selector.namePattern, entryPackages)
+		if err != nil {
+			return nil, err
+		}
+		entryPackages = matched
+	}
+	roots := make(util.Set)
+	matched := make(util.Set)
+	for pkg := range entryPackages {
+		if matched.Includes(pkg) {
+			roots.Add(pkg)
+			continue
+		}
+		deps, err := r.Graph.Ancestors(pkg)
+		if err != nil {
+			return nil, err
+		}
+		for changedPkg := range changedPkgs {
+			if deps.Include(changedPkg) {
+				roots.Add(pkg)
+				matched.Add(changedPkg)
+				break
+			}
+		}
+	}
+	return roots, nil
 }
 
 func matchPackageNamesToVertices(pattern string, vertices []dag.Vertex) (util.Set, error) {
