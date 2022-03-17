@@ -43,13 +43,18 @@ func (o *Opts) asFilterPatterns() []string {
 		since = fmt.Sprintf("[%v]", o.Since)
 	}
 	if len(o.Patterns) > 0 {
-    // --scope implies include dependencies
+		// --scope implies include dependencies
 		for _, pattern := range o.Patterns {
 			negate := ""
+      patternPrefix := prefix
+      patternSuffix := suffix
 			if strings.HasPrefix(pattern, "!") {
 				negate = "!"
+				pattern = pattern[1:]
+        patternPrefix = ""
+        patternSuffix = ""
 			}
-			filterPattern := fmt.Sprintf("%v%v%v%v...", negate, prefix, pattern, since)
+			filterPattern := fmt.Sprintf("%v%v%v%v%v", negate, patternPrefix, pattern, since, patternSuffix)
 			patterns = append(patterns, filterPattern)
 		}
 	} else if since != "" {
@@ -63,10 +68,10 @@ func (o *Opts) asFilterPatterns() []string {
 func (o *Opts) getPackageChangeFunc(scm scm.SCM, packageInfos map[interface{}]*fs.PackageJSON) scope_filter.PackagesChangedSince {
 	return func(since string) (util.Set, error) {
 		// We could filter changed files at the git level, since it's possible
-    // that the changes we're interested in are scoped, but we need to handle
-    // global dependencies changing as well. A future optimization might be to
-    // scope changed files more deeply if we know there are no global dependencies.
-    changedFiles, err := getChangedFiles(o, scm)
+		// that the changes we're interested in are scoped, but we need to handle
+		// global dependencies changing as well. A future optimization might be to
+		// scope changed files more deeply if we know there are no global dependencies.
+		changedFiles, err := getChangedFiles(o, scm)
 		if err != nil {
 			return nil, err
 		}
