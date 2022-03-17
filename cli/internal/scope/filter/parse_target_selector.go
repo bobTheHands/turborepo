@@ -85,17 +85,9 @@ func ParseTargetSelector(rawSelector string, prefix string) (TargetSelector, err
 	if len(matches) > 0 && len(matches[0]) > 0 {
 		if len(matches[0][1]) > 0 {
 			namePattern = matches[0][1]
-			/*if strings.HasSuffix(namePattern, "...") {
-				namePattern = namePattern[:len(namePattern)-3]
-				preAddDepdencies = true
-			}*/
 		}
 		if len(matches[0][2]) > 0 {
 			parentDir = matches[0][2]
-			/*if strings.HasSuffix(parentDir, "...") {
-				parentDir = parentDir[:len(parentDir)-3]
-				preAddDepdencies = true
-			}*/
 			parentDir = filepath.Join(prefix, parentDir[1:len(parentDir)-1])
 		}
 		if len(matches[0][3]) > 0 {

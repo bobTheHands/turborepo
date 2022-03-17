@@ -167,7 +167,6 @@ func TestResolvePackages(t *testing.T) {
 			scope:               []string{"app1"},
 			includeDependencies: true, // scope implies include-dependencies
 		},
-		// TODO(gsoltis): filter syntax doesn't support these cases
 		{
 			// a dependent lib changed, scope implies include-dependencies,
 			// so all deps of app1 get built
@@ -228,7 +227,6 @@ func TestResolvePackages(t *testing.T) {
 			since:    "",
 			expected: []string{"app0", "app1", "app2", "libA", "libB", "libC", "libD"},
 		},
-		// As above, not supported by filter syntax
 		{
 			// a dependent library changed, no deps beyond the scope are build
 			// "libB" is still built because it is a dependent within the scope, but libB's dependents
