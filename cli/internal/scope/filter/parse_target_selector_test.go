@@ -1,6 +1,7 @@
 package filter
 
 import (
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -124,7 +125,7 @@ func TestParseTargetSelector(t *testing.T) {
 				includeDependencies: false,
 				includeDependents:   false,
 				namePattern:         "",
-				parentDir:           "../foo",
+				parentDir:           filepath.FromSlash("../foo"),
 			},
 			false,
 		},
