@@ -1,6 +1,7 @@
 package filter
 
 import (
+	"errors"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -22,6 +23,8 @@ type TargetSelector struct {
 func (ts *TargetSelector) IsValid() bool {
 	return ts.diff != "" || ts.parentDir != "" || ts.namePattern != ""
 }
+
+var errCantMatchDependencies = errors.New("cannot use match dependencies without specifying either a directory or package")
 
 // ParseTargetSelector is a function that returns PNPM compatible --filter command line flags
 func ParseTargetSelector(rawSelector string, prefix string) (TargetSelector, error) {
@@ -93,6 +96,9 @@ func ParseTargetSelector(rawSelector string, prefix string) (TargetSelector, err
 		if len(matches[0][3]) > 0 {
 			diff = matches[0][3]
 			if strings.HasPrefix(diff, "...") {
+				if parentDir == "" && namePattern == "" {
+					return TargetSelector{}, errCantMatchDependencies
+				}
 				preAddDepdencies = true
 				diff = diff[3:]
 			}

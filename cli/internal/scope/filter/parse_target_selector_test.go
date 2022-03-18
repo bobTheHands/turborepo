@@ -259,8 +259,8 @@ func TestParseTargetSelector(t *testing.T) {
 			"foo...[master]",
 			args{"foo...[master]", "."},
 			TargetSelector{
-				diff:             "master",
-				namePattern:      "foo",
+				diff:              "master",
+				namePattern:       "foo",
 				matchDependencies: true,
 			},
 			false,
@@ -271,7 +271,7 @@ func TestParseTargetSelector(t *testing.T) {
 			TargetSelector{
 				diff:                "master",
 				namePattern:         "foo",
-				matchDependencies:    true,
+				matchDependencies:   true,
 				includeDependencies: true,
 			},
 			false,
@@ -280,8 +280,8 @@ func TestParseTargetSelector(t *testing.T) {
 			"{foo}...[master]",
 			args{"{foo}...[master]", "."},
 			TargetSelector{
-				diff:             "master",
-				parentDir:        "foo",
+				diff:              "master",
+				parentDir:         "foo",
 				matchDependencies: true,
 			},
 			false,
@@ -289,26 +289,24 @@ func TestParseTargetSelector(t *testing.T) {
 		{
 			"......[master]",
 			args{"......[master]", "."},
-			TargetSelector{
-				diff:              "master",
-				includeDependents: true,
-				matchDependencies:  true,
-			},
-			false,
+			TargetSelector{},
+			true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := ParseTargetSelector(tt.args.rawSelector, tt.args.prefix)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ParseTargetSelector() error = %#v, wantErr %#v", err, tt.wantErr)
-				return
-			}
-			// copy the raw selector from the args into what we want. This value is used
-			// for reporting errors in the case of a malformed selector
-			tt.want.raw = tt.args.rawSelector
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("ParseTargetSelector() = %#v, want %#v", got, tt.want)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("ParseTargetSelector() error = %#v, wantErr %#v", err, tt.wantErr)
+				}
+			} else {
+				// copy the raw selector from the args into what we want. This value is used
+				// for reporting errors in the case of a malformed selector
+				tt.want.raw = tt.args.rawSelector
+				if !reflect.DeepEqual(got, tt.want) {
+					t.Errorf("ParseTargetSelector() = %#v, want %#v", got, tt.want)
+				}
 			}
 		})
 	}
